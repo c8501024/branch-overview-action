@@ -1,0 +1,72 @@
+name: Release Branch Overview
+description: HTML page with blocks for open pull requests, changes on the development branch not yet released, and released ones
+author: c8501024
+branding:
+  icon: git-pull-request
+  color: blue
+
+inputs:
+  base:
+    description: Release branch
+    default: main
+  head:
+    description: Development branch that pull requests go to
+    default: dev
+  output:
+    description: HTML file to write
+    default: branch-overview/index.html
+  lang:
+    description: Page language, en or de
+    default: en
+  title:
+    description: Page heading (default "Branch overview owner/name")
+    default: ""
+  released:
+    description: Number of released pull requests shown
+    default: "8"
+  version-file:
+    description: File with the version (default pyproject.toml, package.json or Cargo.toml); "none" hides versions
+    default: ""
+  noindex:
+    description: Ask search engines not to index the page
+    default: "false"
+  repository:
+    description: owner/name of the repository to show
+    default: ${{ github.repository }}
+  token:
+    description: Token for the GitHub API; needs read access to contents, pull requests and checks
+    default: ${{ github.token }}
+  timezone:
+    description: Time zone of the dates on the page, e.g. Europe/Berlin
+    default: UTC
+
+outputs:
+  page:
+    description: Path of the written HTML file
+    value: ${{ steps.build.outputs.page }}
+
+runs:
+  using: composite
+  steps:
+    - id: build
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+        TZ: ${{ inputs.timezone }}
+        IN_REPO: ${{ inputs.repository }}
+        IN_BASE: ${{ inputs.base }}
+        IN_HEAD: ${{ inputs.head }}
+        IN_OUT: ${{ inputs.output }}
+        IN_LANG: ${{ inputs.lang }}
+        IN_TITLE: ${{ inputs.title }}
+        IN_RELEASED: ${{ inputs.released }}
+        IN_VERSION_FILE: ${{ inputs.version-file }}
+        IN_NOINDEX: ${{ inputs.noindex }}
+      run: |
+        args=(--repo "$IN_REPO" --base "$IN_BASE" --head "$IN_HEAD" --out "$IN_OUT" --lang "$IN_LANG"
+              --released "$IN_RELEASED" --no-open)
+        [ -n "$IN_TITLE" ] && args+=(--title "$IN_TITLE")
+        if [ "$IN_VERSION_FILE" = "none" ]; then args+=(--version-file ""); elif [ -n "$IN_VERSION_FILE" ]; then args+=(--version-file "$IN_VERSION_FILE"); fi
+        [ "$IN_NOINDEX" = "true" ] && args+=(--noindex)
+        python3 "$GITHUB_ACTION_PATH/branch_overview.py" "${args[@]}"
+        echo "page=$IN_OUT" >> "$GITHUB_OUTPUT"
