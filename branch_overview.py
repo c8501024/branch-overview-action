@@ -101,10 +101,17 @@ def check_summary(gh: GitHub, sha: str) -> str:
 
 
 def fetch(gh: GitHub, base: str, head: str, version_file: str | None = None) -> dict:
-    """Everything the page shows, as plain data."""
-    compare = gh.get(f"/compare/{base}...{head}", per_page=250) or {}
-    # Commits on main that dev lacks. The merge commit of each release is always there and is harmless.
-    reverse = gh.get(f"/compare/{head}...{base}", per_page=250) or {}
+    """Everything the page shows, as plain data. Without a development branch (head missing or equal to
+    base) pull requests go straight to base, and the page has no lane for unreleased changes."""
+    if head != base and gh.get(f"/branches/{head}") is None:
+        print(f"Branch {head} not found, showing pull requests into {base} only.", file=sys.stderr)
+        head = base
+    if head == base:
+        compare, reverse = {}, {}
+    else:
+        compare = gh.get(f"/compare/{base}...{head}", per_page=250) or {}
+        # Commits on base that head lacks. The merge commit of each release is always there and is harmless.
+        reverse = gh.get(f"/compare/{head}...{base}", per_page=250) or {}
     merged_into_head = [p for p in gh.get("/pulls", state="closed", base=head, sort="updated",
                                           direction="desc", per_page=100) or [] if p.get("merged_at")]
     open_prs = gh.get("/pulls", state="open", sort="created", direction="desc", per_page=100) or []
@@ -212,7 +219,8 @@ header a, .note a { color:inherit }
 .note.warn { background:#d92d2015 }
 .legend { display:flex; gap:14px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin-top:8px }
 .legend span::before { content:""; display:inline-block; width:10px; height:10px; border-radius:2px; background:var(--c); margin-right:5px }
-@media (max-width:900px) { .flow { grid-template-columns:1fr } .arrow { transform:rotate(90deg); padding:0; justify-self:center } }
+.flow.two { grid-template-columns:1fr auto 1fr }
+@media (max-width:900px) { .flow, .flow.two { grid-template-columns:1fr } .arrow { transform:rotate(90deg); padding:0; justify-self:center } }
 """
 
 
@@ -355,6 +363,17 @@ class _Page:
                            f'<a href="{gh_url}/compare/{_e(h)}...{_e(b)}" target="_blank">{tr("view")}</a></div>')
         heading = _e(title) if title else f'{tr("title")} <a href="{gh_url}" target="_blank">{_e(repo)}</a>'
         n_pending = len(m["pending"]) + len(m["direct"])
+        single = b == h
+        pending_lane = "" if single else f"""
+  <section class="lane pending"><h2>{tr("lane_pending")} <span class="count">{n_pending}</span></h2>
+    <div class="desc">{tr("lane_pending_desc")}</div>{behind_note}{version_note}{pending_html}</section>
+  <div class="arrow">→</div>"""
+        ahead = "" if single else (f'\n    · {tr("ahead", n=m["ahead_by"])}\n    · <a href="{gh_url}/compare/{_e(b)}...{_e(h)}" '
+                                   f'target="_blank">{tr("compare")}</a>')
+        legend_mid = "" if single else (f'<span style="--c:var(--pending)">{tr("leg_pending")}</span>\n    '
+                                        f'<span style="--c:var(--direct)">{tr("leg_direct")}</span>')
+        if single and vb:
+            versions = f' · {tr("version", r=_e(b), v=_e(vb))}'
         robots = '\n<meta name="robots" content="noindex">' if noindex else ""
         return f"""<!doctype html>
 <html lang="{self.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">{robots}
@@ -362,22 +381,17 @@ class _Page:
 <style>{CSS}</style></head><body>
 <header>
   <h1>{heading}</h1>
-  <div class="sub">{rel_line}{versions}
-    · {tr("ahead", n=m["ahead_by"])}
-    · <a href="{gh_url}/compare/{_e(b)}...{_e(h)}" target="_blank">{tr("compare")}</a>
+  <div class="sub">{rel_line}{versions}{ahead}
     · {tr("as_of", d=self.date(m["fetched"]))}</div>
   <div class="legend">
-    <span style="--c:var(--open)">{tr("leg_open")}</span><span style="--c:var(--pending)">{tr("leg_pending")}</span>
-    <span style="--c:var(--direct)">{tr("leg_direct")}</span><span style="--c:var(--released)">{tr("leg_released")}</span>
+    <span style="--c:var(--open)">{tr("leg_open")}</span>{legend_mid}
+    <span style="--c:var(--released)">{tr("leg_released")}</span>
   </div>
 </header>
-<div class="flow">
+<div class="flow{" two" if single else ""}">
   <section class="lane open"><h2>{tr("lane_open")} <span class="count">{len(m["open"])}</span></h2>
     <div class="desc">{tr("lane_open_desc")}</div>{open_html}</section>
-  <div class="arrow">→</div>
-  <section class="lane pending"><h2>{tr("lane_pending")} <span class="count">{n_pending}</span></h2>
-    <div class="desc">{tr("lane_pending_desc")}</div>{behind_note}{version_note}{pending_html}</section>
-  <div class="arrow">→</div>
+  <div class="arrow">→</div>{pending_lane}
   <section class="lane released"><h2>{tr("lane_released")} <span class="count">{len(m["released"])}</span></h2>
     <div class="desc">{tr("lane_released_desc")}</div>{released_html}</section>
 </div>

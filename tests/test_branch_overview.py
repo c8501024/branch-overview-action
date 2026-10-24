@@ -87,3 +87,27 @@ def test_branch_names_are_escaped():
 def test_version_hidden_without_version_file():
     page = B.render(B.build_model(_data(version_base=None, version_head=None)))
     assert "Version main" not in page
+
+
+def test_without_development_branch_two_lanes():
+    data = _data(head="main", compare={}, only_on_base=[], merged=[_pr(1, "old")])
+    page = B.render(B.build_model(data))
+    assert 'class="flow two"' in page and 'class="lane pending"' not in page
+    assert page.count('class="block released"') == 1 and "ahead" not in page
+
+
+class _FakeGH:
+    repo = "o/r"
+
+    def __init__(self):
+        self.paths = []
+
+    def get(self, path, **params):
+        self.paths.append(path)
+        return None if path.startswith("/branches/") else []
+
+
+def test_missing_head_branch_falls_back_to_base():
+    gh = _FakeGH()
+    data = B.fetch(gh, "main", "dev", version_file="")
+    assert data["head"] == "main" and not any(p.startswith("/compare") for p in gh.paths)

@@ -10,7 +10,7 @@ inputs:
     description: Release branch
     default: main
   head:
-    description: Development branch that pull requests go to
+    description: Development branch that pull requests go to; if it does not exist, pull requests into base are shown
     default: dev
   output:
     description: HTML file to write

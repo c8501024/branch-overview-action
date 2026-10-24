@@ -16,6 +16,9 @@ the latest release:
   link to the compare view. A hint shows when the development branch has unreleased changes but still the
   same version, and when the release branch has commits the development branch lacks (a hotfix).
 
+Branch names are inputs (`base`, `head`), e.g. `main` and `develop`. A repository without a development
+branch (pull requests go straight to `main`) gets two lanes: open pull requests and merged ones.
+
 Python standard library only, no dependencies. English and German.
 
 ## Publish it on GitHub Pages
@@ -104,7 +107,7 @@ Without Pages, upload the page as a run artifact:
 | Input | Default | |
 |---|---|---|
 | `base` | `main` | release branch |
-| `head` | `dev` | development branch |
+| `head` | `dev` | development branch; if it does not exist, pull requests into `base` are shown |
 | `output` | `branch-overview/index.html` | HTML file to write |
 | `lang` | `en` | `en` or `de` |
 | `title` | Branch overview owner/name | page heading |
