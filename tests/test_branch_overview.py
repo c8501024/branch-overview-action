@@ -111,3 +111,11 @@ def test_missing_head_branch_falls_back_to_base():
     gh = _FakeGH()
     data = B.fetch(gh, "main", "dev", version_file="")
     assert data["head"] == "main" and not any(p.startswith("/compare") for p in gh.paths)
+
+
+def test_singular_commit_and_file():
+    pr = _pr(2, "m1", _commit_shas={"c1"}, _commit_count=1)
+    open_pr = _pr(3, None, merged_at=None, additions=1, deletions=0, changed_files=1)
+    page = B.render(B.build_model(_data(merged=[pr], open=[open_pr])))
+    assert "1 commit<" in page or "1 commit " in page or "· 1 commit" in page
+    assert "1 file" in page and "1 files" not in page and "1 commits" not in page

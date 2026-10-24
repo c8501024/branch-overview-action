@@ -120,11 +120,11 @@ def fetch(gh: GitHub, base: str, head: str, version_file: str | None = None) -> 
         full = gh.get(f"/pulls/{pr['number']}") or pr
         full["checks"] = check_summary(gh, pr["head"]["sha"])
         details.append(full)
-    releases = gh.get("/releases", per_page=1) or []
+    release = gh.get("/releases/latest")  # newest non-prerelease, non-draft release
     return {
         "repo": gh.repo, "base": base, "head": head,
         "compare": compare, "only_on_base": reverse.get("commits", []), "merged": merged_into_head, "open": details,
-        "release": releases[0] if releases else None,
+        "release": release,
         "version_base": _version(gh, base, version_file), "version_head": _version(gh, head, version_file),
         "fetched": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
@@ -228,10 +228,10 @@ header a, .note a { color:inherit }
 
 TEXT = {
     "en": {
-        "date": "%Y-%m-%d %H:%M", "opened": "opened {d}", "merged": "merged {d}", "commits": "{n} commits",
+        "date": "%Y-%m-%d %H:%M", "opened": "opened {d}", "merged": "merged {d}", "commits": "{n} commits", "commit": "1 commit",
         "draft": "Draft", "ok": "Checks passed", "bad": "Checks failed", "wait": "Checks running",
         "none": "No checks", "conflict": "Merge conflict", "behind": "behind {b}", "target": "targets {t}, not {h}",
-        "files": "{n} files", "direct": "pushed to {h} without a pull request",
+        "files": "{n} files", "file": "1 file", "direct": "pushed to {h} without a pull request",
         "no_open": "No open pull requests.", "same": "{h} and {b} are even. Nothing waits for a release.",
         "no_released": "No merged pull requests yet.",
         "release": 'Last release <a href="{u}" target="_blank">{t}</a> on {d}', "no_release": "No release yet",
@@ -246,10 +246,10 @@ TEXT = {
         "lane_released": "Released on {b}", "lane_released_desc": "The latest merged pull requests already on {b}.",
     },
     "de": {
-        "date": "%d.%m.%Y %H:%M", "opened": "geöffnet {d}", "merged": "gemergt {d}", "commits": "{n} Commits",
+        "date": "%d.%m.%Y %H:%M", "opened": "geöffnet {d}", "merged": "gemergt {d}", "commits": "{n} Commits", "commit": "1 Commit",
         "draft": "Entwurf", "ok": "Checks grün", "bad": "Checks rot", "wait": "Checks laufen",
         "none": "keine Checks", "conflict": "Merge-Konflikt", "behind": "hinter {b}", "target": "Ziel ist {t}, nicht {h}",
-        "files": "{n} Dateien", "direct": "direkt auf {h}, ohne PR",
+        "files": "{n} Dateien", "file": "1 Datei", "direct": "direkt auf {h}, ohne PR",
         "no_open": "Keine offenen Pull Requests.", "same": "{h} und {b} sind gleich. Nichts wartet auf ein Release.",
         "no_released": "Noch keine gemergten Pull Requests.",
         "release": 'Letztes Release <a href="{u}" target="_blank">{t}</a> vom {d}', "no_release": "Noch kein Release",
@@ -313,12 +313,12 @@ class _Page:
             if "additions" in pr:
                 badges.append(f'<span class="diff"><span class="add">+{pr["additions"]}</span> '
                               f'<span class="del">−{pr["deletions"]}</span> · '
-                              f'{self.tr("files", n=pr["changed_files"])}</span>')
+                              f'{(self.tr("file") if pr["changed_files"] == 1 else self.tr("files", n=pr["changed_files"]))}</span>')
             extra = f'<div class="badges">{"".join(badges)}</div>'
         else:
             meta.append(self.tr("merged", d=self.date(pr["merged_at"])))
             if pr.get("_commit_count"):
-                meta.append(self.tr("commits", n=pr["_commit_count"]))
+                meta.append(self.tr("commit") if pr["_commit_count"] == 1 else self.tr("commits", n=pr["_commit_count"]))
         return (f'<a class="block {kind}" href="{_e(pr["html_url"])}" target="_blank" rel="noopener">'
                 f'<div class="title">{_e(pr["title"])}</div>{self.labels(pr)}'
                 f'<div class="meta">{" · ".join(meta)}</div>{extra}</a>')
